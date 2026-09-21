@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/JB4779/pokedex/internal/pokecache"
 )
 
 type mapTransport func(*http.Request) (*http.Response, error)
@@ -14,12 +17,15 @@ func (f mapTransport) RoundTrip(r *http.Request) (*http.Response, error) { retur
 
 func TestMapPagination(t *testing.T) {
 	first, second := "https://example.test/?limit=20", "https://example.test/?limit=20&offset=20"
+	back := first + "&offset=0"
 	var requested []string
-	cfg := &config{Next: &first, httpClient: &http.Client{Transport: mapTransport(func(r *http.Request) (*http.Response, error) {
+	cache := pokecache.NewCache(time.Minute)
+	defer cache.Close()
+	cfg := &config{cache: cache, Next: &first, httpClient: &http.Client{Transport: mapTransport(func(r *http.Request) (*http.Response, error) {
 		requested = append(requested, r.URL.String())
 		body := fmt.Sprintf(`{"next":%q,"previous":null,"results":[{"name":"canalave-city-area"}]}`, second)
 		if r.URL.String() == second {
-			body = fmt.Sprintf(`{"next":null,"previous":%q,"results":[{"name":"great-marsh-area-1"}]}`, first)
+			body = fmt.Sprintf(`{"next":null,"previous":%q,"results":[{"name":"great-marsh-area-1"}]}`, first+"&offset=0")
 		}
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, nil
 	})}}
@@ -32,9 +38,10 @@ func TestMapPagination(t *testing.T) {
 		{"back before first", commandMapb, &first, nil, 0},
 		{"first", commandMap, &second, nil, 1},
 		{"back on first", commandMapb, &second, nil, 1},
-		{"second", commandMap, nil, &first, 2},
-		{"last boundary", commandMap, nil, &first, 2},
-		{"back", commandMapb, &second, nil, 3},
+		{"second", commandMap, nil, &back, 2},
+		{"last boundary", commandMap, nil, &back, 2},
+		{"back", commandMapb, &second, nil, 2},
+		{"forward cached", commandMap, nil, &back, 2},
 	} {
 		t.Run(step.name, func(t *testing.T) {
 			if err := step.callback(cfg); err != nil {
@@ -49,7 +56,7 @@ func TestMapPagination(t *testing.T) {
 			}
 		})
 	}
-	if strings.Join(requested, "|") != strings.Join([]string{first, second, first}, "|") {
+	if strings.Join(requested, "|") != strings.Join([]string{first, second}, "|") {
 		t.Fatalf("wrong request order: %v", requested)
 	}
 }
@@ -66,14 +73,16 @@ func TestMapErrorsPreservePagination(t *testing.T) {
 		{"network error", 0, "", fmt.Errorf("connection failed")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			cache := pokecache.NewCache(time.Minute)
+			defer cache.Close()
 			next, previous := "https://example.test/next", "https://example.test/previous"
-			cfg := &config{Next: &next, Previous: &previous, httpClient: &http.Client{Transport: mapTransport(func(r *http.Request) (*http.Response, error) {
+			cfg := &config{cache: cache, Next: &next, Previous: &previous, httpClient: &http.Client{Transport: mapTransport(func(r *http.Request) (*http.Response, error) {
 				if tc.err != nil {
 					return nil, tc.err
 				}
 				return &http.Response{StatusCode: tc.status, Status: fmt.Sprint(tc.status), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
 			})}}
-			for _, callback := range []func(*config) error{commandMap, commandMapb} {
+			for _, callback := range []func(*config) error{commandMap, commandMapb, commandMap, commandMapb} {
 				if err := callback(cfg); err == nil {
 					t.Fatal("expected error")
 				}

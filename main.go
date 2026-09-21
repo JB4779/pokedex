@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/JB4779/pokedex/internal/pokecache"
 )
 
 type config struct {
@@ -15,6 +17,7 @@ type config struct {
 	Next       *string
 	Previous   *string
 	httpClient *http.Client
+	cache      *pokecache.Cache
 }
 
 type cliCommand struct {
@@ -69,7 +72,9 @@ func main() {
 		commands:   getCommands(),
 		Next:       &firstPage,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
+		cache:      pokecache.NewCache(5 * time.Minute),
 	}
+	defer cfg.cache.Close()
 	startRepl(cfg)
 }
 
