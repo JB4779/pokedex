@@ -2,6 +2,7 @@
 repl.log
 
 # Compiled executables
+pokedex
 pokedexcli
 pokedexcli.exe
 *.exe
