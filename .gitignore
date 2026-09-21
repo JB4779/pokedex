@@ -1,0 +1,27 @@
+# Assignment output
+repl.log
+
+# Compiled executables
+pokedexcli
+pokedexcli.exe
+*.exe
+
+# Go test and coverage output
+*.test
+*.out
+coverage.out
+
+# Environment files and secrets
+.env
+.env.*
+
+# Editor files
+.vscode/
+.idea/
+
+# Operating-system files
+.DS_Store
+Thumbs.db
+
+# Temporary directories
+tmp/
