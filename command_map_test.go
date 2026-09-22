@@ -31,7 +31,7 @@ func TestMapPagination(t *testing.T) {
 	})}}
 	for _, step := range []struct {
 		name           string
-		callback       func(*config) error
+		callback       func(*config, ...string) error
 		next, previous *string
 		requests       int
 	}{
@@ -82,7 +82,7 @@ func TestMapErrorsPreservePagination(t *testing.T) {
 				}
 				return &http.Response{StatusCode: tc.status, Status: fmt.Sprint(tc.status), Body: io.NopCloser(strings.NewReader(tc.body))}, nil
 			})}}
-			for _, callback := range []func(*config) error{commandMap, commandMapb, commandMap, commandMapb} {
+			for _, callback := range []func(*config, ...string) error{commandMap, commandMapb, commandMap, commandMapb} {
 				if err := callback(cfg); err == nil {
 					t.Fatal("expected error")
 				}

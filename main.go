@@ -13,35 +13,41 @@ import (
 )
 
 type config struct {
-	commands   map[string]cliCommand
-	Next       *string
-	Previous   *string
-	httpClient *http.Client
-	cache      *pokecache.Cache
+	commands    map[string]cliCommand
+	Next        *string
+	Previous    *string
+	httpClient  *http.Client
+	cache       *pokecache.Cache
+	pokedex     map[string]Pokemon
+	randomFloat func() float64
 }
 
 type cliCommand struct {
 	name        string
 	description string
-	callback    func(*config) error
+	callback    func(*config, ...string) error
 }
 
 func getCommands() map[string]cliCommand {
 	return map[string]cliCommand{
-		"map":  {name: "map", description: "Display the next 20 location areas", callback: commandMap},
-		"mapb": {name: "mapb", description: "Display the previous 20 location areas", callback: commandMapb},
-		"exit": {name: "exit", description: "Exit the Pokedex", callback: commandExit},
-		"help": {name: "help", description: "Displays a help message", callback: commandHelp},
+		"pokedex": {name: "pokedex", description: "List all caught Pokemon", callback: commandPokedex},
+		"inspect": {name: "inspect", description: "Inspect a caught Pokemon: inspect <pokemon_name>", callback: commandInspect},
+		"catch":   {name: "catch", description: "Catch a Pokemon: catch <pokemon_name>", callback: commandCatch},
+		"explore": {name: "explore", description: "Explore a location area: explore <area_name>", callback: commandExplore},
+		"map":     {name: "map", description: "Display the next 20 location areas", callback: commandMap},
+		"mapb":    {name: "mapb", description: "Display the previous 20 location areas", callback: commandMapb},
+		"exit":    {name: "exit", description: "Exit the Pokedex", callback: commandExit},
+		"help":    {name: "help", description: "Displays a help message", callback: commandHelp},
 	}
 }
 
-func commandExit(_ *config) error {
+func commandExit(_ *config, _ ...string) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func commandHelp(cfg *config) error {
+func commandHelp(cfg *config, _ ...string) error {
 	fmt.Print("Welcome to the Pokedex!\nUsage:\n\n")
 	commands := cfg.commands
 	names := make([]string, 0, len(commands))
@@ -70,6 +76,7 @@ func main() {
 	firstPage := "https://pokeapi.co/api/v2/location-area/?limit=20"
 	cfg := &config{
 		commands:   getCommands(),
+		pokedex:    make(map[string]Pokemon),
 		Next:       &firstPage,
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		cache:      pokecache.NewCache(5 * time.Minute),
@@ -95,7 +102,7 @@ func startRepl(cfg *config) {
 			fmt.Println("Unknown command")
 			continue
 		}
-		if err := command.callback(cfg); err != nil {
+		if err := command.callback(cfg, words[1:]...); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		}
 	}
